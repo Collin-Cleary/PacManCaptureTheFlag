@@ -1,0 +1,9 @@
+python capture.p
+python capture.py --hel
+python capture.py -b OffenseDefenseAgents
+python pacclient.py -a OffenseDefenseAgent
+python pacclient.py -U blitz -P noprisoners -a AllOffenseAgent
+
+python pacclient.py -a KeyboardAgents -g MyCoolGam
+Server: irc.csua.berke
+python capture.py -1 RandomAgent -
