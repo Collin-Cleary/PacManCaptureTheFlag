@@ -45,51 +45,6 @@ def createTeam(firstIndex, secondIndex, isRed,
 # Agents #
 ##########
 
-class DummyAgent(CaptureAgent):
-  """
-  A Dummy agent to serve as an example of the necessary agent structure.
-  You should look at baselineTeam.py for more details about how to
-  create an agent as this is the bare minimum.
-  """
-
-  def registerInitialState(self, gameState):
-    """
-    This method handles the initial setup of the
-    agent to populate useful fields (such as what team
-    we're on).
-
-    A distanceCalculator instance caches the maze distances
-    between each pair of positions, so your agents can use:
-    self.distancer.getDistance(p1, p2)
-
-    IMPORTANT: This method may run for at most 15 seconds.
-    """
-
-    '''
-    Make sure you do not delete the following line. If you would like to
-    use Manhattan distances instead of maze distances in order to save
-    on initialization time, please take a look at
-    CaptureAgent.registerInitialState in captureAgents.py.
-    '''
-    CaptureAgent.registerInitialState(self, gameState)
-
-    '''
-    Your initialization code goes here, if you need any.
-    '''
-
-
-  def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
-    actions = gameState.getLegalActions(self.index)
-
-    '''
-    You should change this in your own agent.
-    '''
-
-    return random.choice(actions)
-
 
 class CollinAgent(CaptureAgent):
     """
@@ -101,6 +56,7 @@ class CollinAgent(CaptureAgent):
 
     threat = False
     initialFoodCount = 0
+    lastEnemyScore = 0
 
     def registerInitialState(self, gameState):
         CaptureAgent.registerInitialState(self, gameState)
@@ -127,9 +83,19 @@ class CollinAgent(CaptureAgent):
         # Track initial friendly food count for defense decisions
         self.initialFoodCount = len(self.getFoodYouAreDefending(gameState).asList())
 
+        # Track enemy score to detect successful scoring
+        self.lastEnemyScore = self.getScore(gameState)
+
     def chooseAction(self, gameState):
         actions = gameState.getLegalActions(self.index)
         actions = [a for a in actions if a != "Stop"]
+
+        # Check if enemy successfully scored (food returned to their side)
+        currentEnemyScore = self.getScore(gameState)
+        if currentEnemyScore < self.lastEnemyScore:
+            # Enemy scored (our score decreased), reset to normal play
+            self.initialFoodCount = len(self.getFoodYouAreDefending(gameState).asList())
+        self.lastEnemyScore = currentEnemyScore
 
         # Check how much friendly food has been eaten
         currentFriendlyFood = len(self.getFoodYouAreDefending(gameState).asList())
@@ -259,15 +225,16 @@ class CollinAgent(CaptureAgent):
             else:
                 self.threat = False
 
+        #redundant
         # Go home if carrying too much food
-        carried = myState.numCarrying
-        if carried > 3:
-            if self.borderPositions:
-                homePos = min(
-                    self.borderPositions,
-                    key=lambda p: self.getMazeDistance(myPos, p)
-                )
-                features["returnHome"] = -self.getMazeDistance(myPos, homePos)
+        # carried = myState.numCarrying
+        # if carried > 3:
+        #     if self.borderPositions:
+        #         homePos = min(
+        #             self.borderPositions,
+        #             key=lambda p: self.getMazeDistance(myPos, p)
+        #         )
+        #         features["returnHome"] = -self.getMazeDistance(myPos, homePos)
 
         currentFoodCount = len(self.getFood(gameState).asList())
         newFoodCount = len(self.getFood(successor).asList())
@@ -279,12 +246,13 @@ class CollinAgent(CaptureAgent):
         walls = gameState.getWalls()
         x, y = int(myPos[0]), int(myPos[1])
 
-        wallcount = 0
-        if walls[x+1][y]: wallcount += 1
-        if walls[x-1][y]: wallcount += 1
-        if walls[x][y+1]: wallcount += 1
-        if walls[x][y-1]: wallcount += 1
-        features["deadEnd"] = 1 if wallcount == 3 else 0
+        # A* completely dominates and this never triggers
+        # wallcount = 0
+        # if walls[x+1][y]: wallcount += 1
+        # if walls[x-1][y]: wallcount += 1
+        # if walls[x][y+1]: wallcount += 1
+        # if walls[x][y-1]: wallcount += 1
+        # features["deadEnd"] = 1 if wallcount == 3 else 0
 
         # Incentivize teammate separation when in defense mode
         if inDefenseMode:
@@ -361,6 +329,7 @@ class CollinAgent(CaptureAgent):
         A* search on the maze grid from start to a goal position.
         - `start` is a (x,y) tuple of integers.
         - `goals` may be a single (x,y) tuple or an iterable of goal tuples.
+        - Treats enemy ghosts as obstacles (avoids paths through ghost positions).
 
         Returns a list of actions (e.g. ['North','East',...]) leading from
         start to the closest goal, or an empty list if no path found.
@@ -371,6 +340,13 @@ class CollinAgent(CaptureAgent):
         goalSet = set(goals)
 
         walls = gameState.getWalls()
+
+        # Identify ghost positions to treat as obstacles
+        ghostPositions = set()
+        opponents = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        for opponent in opponents:
+            if not opponent.isPacman and opponent.getPosition() is not None:
+                ghostPositions.add(opponent.getPosition())
 
         # Heuristic: Manhattan distance to nearest goal
         def heuristic(pos):
@@ -400,6 +376,9 @@ class CollinAgent(CaptureAgent):
                 ny = current[1] + delta[1]
                 # skip walls
                 if walls[nx][ny]:
+                    continue
+                # skip ghost positions
+                if (nx, ny) in ghostPositions:
                     continue
                 neighbor = (nx, ny)
                 new_cost = cost_so_far[current] + 1
