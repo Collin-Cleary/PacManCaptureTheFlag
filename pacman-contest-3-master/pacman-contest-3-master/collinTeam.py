@@ -152,23 +152,10 @@ class CollinAgent(CaptureAgent):
             # Next: follow A* for clear objectives:
             carried = myState.numCarrying
 
-            # Return home when carrying too much or threatened
-            if carried > 3 or self.threat:
+            # Return home when carrying too much
+            if carried > 3:
                 if self.borderPositions:
                     path = self.aStarSearch(gameState, start, self.borderPositions)
-                    if path:
-                        return path[0]
-
-            # Otherwise try to go to the nearest food (only if defense threshold not met)
-            if not shouldDefend:
-                foodList = self.getFood(gameState).asList()
-                if foodList:
-                    try:
-                        nearestFood = min(foodList, key=lambda f: self.getMazeDistance(start, f))
-                    except Exception:
-                        nearestFood = min(foodList, key=lambda f: abs(start[0]-f[0]) + abs(start[1]-f[1]))
-
-                    path = self.aStarSearch(gameState, start, nearestFood)
                     if path:
                         return path[0]
 
