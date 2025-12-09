@@ -158,7 +158,7 @@ class ExpectimaxBase(CaptureAgent):
         return self.evaluateState(gameState)
 
      numAgents = gameState.getNumAgents()
-     legalActions = gameState.getLegalActions(agentIndex)
+     legalActions = gameState.getLegalActions(agentIdex)
 
      # If some weird state has no actions, just evaluate it
      if len(legalActions) == 0:
@@ -169,12 +169,12 @@ class ExpectimaxBase(CaptureAgent):
         legalActions.remove(Directions.STOP)
 
      # MAX node: our own agent
-     if agentIndex == self.index:
+     if agentIdex == self.index:
        bestValue = float('-inf')
        for action in legalActions:
         # ✅ use getSuccessor for our own moves
         successor = self.getSuccessor(gameState, action)
-        nextAgent = (agentIndex + 1) % numAgents
+        nextAgent = (agentIdex + 1) % numAgents
         value = self.expectimax(successor, depth - 1, nextAgent)
         if value > bestValue:
           bestValue = value
@@ -186,8 +186,8 @@ class ExpectimaxBase(CaptureAgent):
             prob = 1.0 / len(legalActions)
             expectedValue = 0.0
             for action in legalActions:
-                successor = gameState.generateSuccessor(agentIndex, action)
-                nextAgent = (agentIndex + 1) % numAgents
+                successor = gameState.generateSuccessor(agentIdex, action)
+                nextAgent = (agentIdex + 1) % numAgents
                 # Depth only decreases when it becomes our turn and we actually move
                 # So we pass the same depth here.
                 value = self.expectimax(successor, depth, nextAgent)

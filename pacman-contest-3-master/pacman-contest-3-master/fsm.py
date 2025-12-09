@@ -20,7 +20,7 @@ from game import Directions, Actions
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='OffenseFSMAgent', second='FSMBaseAgent'):
+               first='OffenseFSMAgent', second='DefenseFSMAgent'):
     """
     Return a list of two agents that form the team.
     """
