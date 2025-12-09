@@ -1,0 +1,365 @@
+# AngieTeam(2).py
+# ---------
+# Licensing Information:  You are free to use or extend these projects for
+# educational purposes provided that (1) you do not distribute or publish
+# solutions, (2) you retain this notice, and (3) you provide clear
+# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
+# 
+# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
+# The core projects and autograders were primarily created by John DeNero
+# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# Student side autograding was added by Brad Miller, Nick Hay, and
+# Pieter Abbeel (pabbeel@cs.berkeley.edu).
+
+
+from captureAgents import CaptureAgent
+import random, time, util
+from game import Directions
+import game
+
+#################
+# Team creation #
+#################
+
+def createTeam(firstIndex, secondIndex, isRed,
+               first = 'DefenseExpectimaxAgent', second = 'OffenseExpectimaxAgent'):
+  """
+  This function should return a list of two agents that will form the
+  team, initialized using firstIndex and secondIndex as their agent
+  index numbers.  isRed is True if the red team is being created, and
+  will be False if the blue team is being created.
+
+  """
+
+  # The following line is an example only; feel free to change it.
+  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+
+##########
+# Agents #
+##########
+
+class DummyAgent(CaptureAgent):
+  """
+  A Dummy agent to serve as an example of the necessary agent structure.
+  You should look at baselineTeam.py for more details about how to
+  create an agent as this is the bare minimum.
+  """
+
+  def registerInitialState(self, gameState):
+    """
+    This method handles the initial setup of the
+    agent to populate useful fields (such as what team
+    we're on).
+
+    A distanceCalculator instance caches the maze distances
+    between each pair of positions, so your agents can use:
+    self.distancer.getDistance(p1, p2)
+
+    IMPORTANT: This method may run for at most 15 seconds.
+    """
+
+    '''
+    Make sure you do not delete the following line. If you would like to
+    use Manhattan distances instead of maze distances in order to save
+    on initialization time, please take a look at
+    CaptureAgent.registerInitialState in captureAgents.py.
+    '''
+    CaptureAgent.registerInitialState(self, gameState)
+
+    '''
+    Your initialization code goes here, if you need any.
+    '''
+
+
+  def chooseAction(self, gameState):
+    """
+    Picks among actions randomly.
+    """
+    actions = gameState.getLegalActions(self.index)
+
+    '''
+    You should change this in your own agent.
+    '''
+
+    return random.choice(actions)
+
+
+
+
+#Agent Based On Expectimax
+
+class ExpectimaxBase(CaptureAgent):
+  
+  """
+    A Capture the Flag agent that uses a small-depth Expectimax search.
+
+    High-level idea:
+      - Treat our own moves as "max" nodes.
+      - Treat opponent moves as "chance" nodes (assume they pick uniformly
+        from their legal actions).
+      - Use a feature-based evaluation function at the leaf nodes to score
+        how good a state is for our team.
+    """
+  
+  def registerInitialState(self, gameState):
+    self.start = gameState.getAgentPosition(self.index)
+    self.searchDepth = 2 #Number of moves agent can simulate ahead
+    
+    CaptureAgent.registerInitialState(self, gameState)
+  
+  
+  def chooseAction(self, gameState):
+    """
+    Top-level Decision: run one step of expectimax and pick the action
+    with the highest expected value.
+
+    I kept the depth smaller to not take so much compute time
+    """
+    
+    legalActions = gameState.getLegalActions(self.index)
+
+    if Directions.STOP in legalActions and len(legalActions) > 1:
+        legalActions.remove(Directions.STOP)
+
+    # You can keep or comment this out; see note below
+    currDir = gameState.getAgentState(self.index).configuration.direction
+    rev = Directions.REVERSE[currDir]
+    if rev in legalActions and len(legalActions) > 1:
+        legalActions.remove(rev)
+
+    numAgents = gameState.getNumAgents()
+    bestAction = None
+    bestValue = float('-inf')
+
+    fallback = random.choice(legalActions) if legalActions else Directions.STOP
+
+    for action in legalActions:
+        # ✅ use getSuccessor instead of generateSuccessor
+        successor = self.getSuccessor(gameState, action)
+        nextAgent = (self.index + 1) % numAgents
+        value = self.expectimax(successor,
+                                depth=self.searchDepth - 1,
+                                agentIndex=nextAgent)
+        if value > bestValue:
+            bestValue = value
+            bestAction = action
+
+    return bestAction if bestAction is not None else fallback
+  
+  def expectimax(self, gameState, depth, agentIdex):
+     """
+     Recursive expectimax search.
+
+     depth = how many more times this agent is allowed to move in this simulated future.
+     agentIndex = whose turn it is in this simulated state.
+     """
+     # Terminal: Checks if the game is over or if there is no depth to search
+     if depth == 0 or gameState.isOver():
+        return self.evaluateState(gameState)
+
+     numAgents = gameState.getNumAgents()
+     legalActions = gameState.getLegalActions(agentIndex)
+
+     # If some weird state has no actions, just evaluate it
+     if len(legalActions) == 0:
+        return self.evaluateState(gameState)
+
+     # Don't let anyone stand still in search unless forced
+     if Directions.STOP in legalActions and len(legalActions) > 1:
+        legalActions.remove(Directions.STOP)
+
+     # MAX node: our own agent
+     if agentIndex == self.index:
+       bestValue = float('-inf')
+       for action in legalActions:
+        # ✅ use getSuccessor for our own moves
+        successor = self.getSuccessor(gameState, action)
+        nextAgent = (agentIndex + 1) % numAgents
+        value = self.expectimax(successor, depth - 1, nextAgent)
+        if value > bestValue:
+          bestValue = value
+        return bestValue
+
+     # CHANCE node: opponent agent
+     else:
+          # Assume uniform probability over opponent's legal actions
+            prob = 1.0 / len(legalActions)
+            expectedValue = 0.0
+            for action in legalActions:
+                successor = gameState.generateSuccessor(agentIndex, action)
+                nextAgent = (agentIndex + 1) % numAgents
+                # Depth only decreases when it becomes our turn and we actually move
+                # So we pass the same depth here.
+                value = self.expectimax(successor, depth, nextAgent)
+                expectedValue += prob * value
+            return expectedValue
+
+    ###########################
+    #  Evaluation Heuristic   #
+    ###########################
+
+  def evaluateState(self, gameState):
+      """
+      Abstract: subclasses must implement their own evaluation function.
+
+      Should return a single number:
+      higher = better for this agent / our team.
+      """
+      util.raiseNotDefined()
+
+
+    #################
+    # Small helper  #
+    #################
+
+  def getSuccessor(self, gameState, action):
+        """
+        Like in baselineTeam: get the successor, but ensure we move to a grid point
+        (handle half-steps).
+        """
+        successor = gameState.generateSuccessor(self.index, action)
+        pos = successor.getAgentState(self.index).getPosition()
+        if pos != util.nearestPoint(pos):
+            # Only half a grid position was covered; continue one more step
+            return successor.generateSuccessor(self.index, action)
+        else:
+            return successor
+        
+class OffenseExpectimaxAgent(ExpectimaxBase):
+    """
+    Expectimax agent focused on OFFENSE:
+      - eats enemy food
+      - grabs capsules
+      - avoids enemy ghosts when we are Pacman
+    """
+
+    def evaluateState(self, gameState):
+        features = util.Counter()
+
+        myState = gameState.getAgentState(self.index)
+        myPos = myState.getPosition()
+
+        # Team-relative score (positive = good for us)
+        features['score'] = self.getScore(gameState)
+
+        ###################
+        # FOOD / CAPSULES #
+        ###################
+        foodList = self.getFood(gameState).asList()  # food we can eat
+        features['remainingFood'] = len(foodList)
+
+        if foodList and myPos is not None:
+            minFoodDist = min(self.getMazeDistance(myPos, f) for f in foodList)
+            features['closestFood'] = float(minFoodDist)
+        else:
+            features['closestFood'] = 0.0
+
+        capsules = self.getCapsules(gameState)
+        if capsules and myPos is not None:
+            minCapDist = min(self.getMazeDistance(myPos, c) for c in capsules)
+            features['closestCapsule'] = float(minCapDist)
+        else:
+            features['closestCapsule'] = 0.0
+
+        ###################
+        #   ENEMY GHOSTS  #
+        ###################
+        enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        visibleEnemies = [e for e in enemies if e.getPosition() is not None]
+
+        ghosts = [e for e in visibleEnemies if not e.isPacman]
+        if ghosts and myPos is not None:
+            ghostDists = [self.getMazeDistance(myPos, g.getPosition()) for g in ghosts]
+            closestGhost = min(ghostDists)
+            features['closestGhost'] = float(closestGhost)
+        else:
+            # If we don't see ghosts, treat them as far away
+            features['closestGhost'] = 999.0
+
+        # Encourage being Pacman (on offense)
+        features['onOffense'] = 1 if myState.isPacman else 0
+
+        ###################
+        #    WEIGHTS      #
+        ###################
+        weights = {
+            'score'          : 100.0,   # winning is most important
+            'remainingFood'  : -4.0,    # fewer food left is good
+            'closestFood'    : -1.5,    # closer to food is good
+            'closestCapsule' : -1.0,    # closer to capsules is good
+            'closestGhost'   : 2.5,     # bigger distance to ghosts is good
+            
+            #Made stronger to get it to be pacman
+            'onOffense'      : 30.0,     # prefer being Pacman
+        }
+
+        return features * weights
+
+
+class DefenseExpectimaxAgent(ExpectimaxBase):
+    """
+    Expectimax agent focused on DEFENSE:
+      - keeps invaders off our side
+      - prefers to stay on defense (not become Pacman)
+      - doesn't care much about eating enemy food
+    """
+
+    def evaluateState(self, gameState):
+        features = util.Counter()
+
+        myState = gameState.getAgentState(self.index)
+        myPos = myState.getPosition()
+
+        ###################
+        #   DEFENSE MODE  #
+        ###################
+
+        # Are we on defense? (ghost on our side)
+        features['onDefense'] = 0
+        if not myState.isPacman:
+            features['onDefense'] = 1
+
+        # Enemies & invaders
+        enemies = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        visibleEnemies = [e for e in enemies if e.getPosition() is not None]
+        invaders = [e for e in visibleEnemies if e.isPacman]  # enemy pacmen on our side
+
+        features['numInvaders'] = len(invaders)
+
+        if invaders and myPos is not None:
+            dists = [self.getMazeDistance(myPos, inv.getPosition()) for inv in invaders]
+            features['closestInvader'] = float(min(dists))
+        else:
+            features['closestInvader'] = 0.0
+
+        ###################
+        #    POSITIONING   #
+        ###################
+
+        # Try to stay near the food we defend
+        defendFood = self.getFoodYouAreDefending(gameState).asList()
+        if defendFood and myPos is not None:
+            distToDefended = min(self.getMazeDistance(myPos, f) for f in defendFood)
+            features['defendedFoodDist'] = float(distToDefended)
+        else:
+            features['defendedFoodDist'] = 0.0
+
+        ###################
+        #    SCORE        #
+        ###################
+        # Still care about team score, but less than offense agent
+        features['score'] = self.getScore(gameState)
+
+        ###################
+        #    WEIGHTS      #
+        ###################
+        weights = {
+            'onDefense'       : 100.0,   # strongly prefer being ghost on our side
+            'numInvaders'     : -50.0,  # fewer invaders is better
+            'closestInvader'  : -10.0,   # smaller distance to invader is better (so we chase)
+            'defendedFoodDist': -1.0,    # stay roughly near our food
+            'score'           : 10.0,    # still care about overall score, but less than offense
+        }
+
+        return features * weights
+
