@@ -1,4 +1,4 @@
-# fsm.py
+#AngieAgent.py
 # ---------
 # Licensing Information:  You are free to use or extend these projects for
 # educational purposes provided that (1) you do not distribute or publish
@@ -20,7 +20,7 @@ from game import Directions, Actions
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='OffenseFSMAgent', second='DefenseFSMAgent'):
+               first='OffenseFSMAgent', second='FSMBaseAgent'):
     """
     Return a list of two agents that form the team.
     """
